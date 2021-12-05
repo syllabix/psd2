@@ -6,5 +6,4 @@
 //! working with European Payments Directive 2 APIs
 
 pub mod mtls;
-
 pub use url::Url;
