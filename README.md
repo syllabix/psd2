@@ -1,2 +1,3 @@
-# psd2
+# [wip] psd2
+
 Utilities for interfacing with European Payment Service Directive APIs
