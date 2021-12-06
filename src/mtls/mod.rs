@@ -9,6 +9,6 @@
 //! https://www.europeanpaymentscouncil.eu/sites/default/files/kb/file/2018-11/API%20EG%20058-18%20v1.0%20eIDAS%20and%20TPP%20identification%20%28PSD2%29.pdf
 //!
 
-mod client;
+pub use self::client::{Certificate, Client};
 
-pub use self::client::{Certificate, Client, PrivateKey};
+mod client;
