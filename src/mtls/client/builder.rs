@@ -1,4 +1,4 @@
-use hyper::header::{self, HeaderValue};
+use hyper::header;
 use rustls::OwnedTrustAnchor;
 
 use crate::mtls;
@@ -26,7 +26,7 @@ impl<'a> Builder<'a> {
 
     /// Sets a single certificate and matching private key for use
     /// in client authentication.
-    pub fn single_cert(&mut self, cert: mtls::Certificate) -> &mut Self {
+    pub fn certificate(&mut self, cert: mtls::Certificate) -> &mut Self {
         self.cert = Some(cert);
         self
     }
@@ -34,7 +34,8 @@ impl<'a> Builder<'a> {
     /// Adds a default http header to that will be used on ever outgoing request from
     /// the client
     pub fn default_header(&mut self, key: &'static str, value: &'static str) -> &mut Self {
-        self.headers.append(key, header::HeaderValue::from_static(value));
+        self.headers
+            .append(key, header::HeaderValue::from_static(value));
         self
     }
 

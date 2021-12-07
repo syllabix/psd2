@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = mtls::Client::builder()
         .base_url("https://test.ob.com")
         .default_header("Cache-Control", "no-cache")
-        .single_cert(cert)
+        .certificate(cert)
         .build();
 
     Ok(())

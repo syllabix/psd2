@@ -1,6 +1,11 @@
 mod builder;
 
-use std::{error::Error, fmt, fs::File, io};
+use std::{
+    error::Error,
+    fmt,
+    fs::File,
+    io::{self, BufRead},
+};
 
 pub use builder::Builder;
 use hyper::client::HttpConnector;
@@ -61,23 +66,34 @@ impl Certificate {
         cert_file: &str,
         key_file: &str,
     ) -> Result<Certificate, Box<dyn Error>> {
-        let chain = {
+        let mut cert = {
             let f = File::open(cert_file)?;
-            let mut f = io::BufReader::new(f);
-            rustls_pemfile::certs(&mut f)?
+            io::BufReader::new(f)
+        };
+
+        let mut key = {
+            let f = File::open(key_file)?;
+            io::BufReader::new(f)
+        };
+
+        return Certificate::from_x509_key_pair(&mut cert, &mut key);
+    }
+
+    /// from_x509_key_pair reads and parses a public/private key pair from a pair
+    /// of buffered readers. The buffers must contain PEM encoded data.
+    pub fn from_x509_key_pair(
+        cert: &mut dyn io::BufRead,
+        key: &mut dyn io::BufRead,
+    ) -> Result<Certificate, Box<dyn Error>> {
+        let chain = {
+            rustls_pemfile::certs(cert)?
                 .iter()
                 .map(|der| rustls::Certificate(der.to_vec()))
                 .collect()
         };
 
         let key = {
-            let f = File::open(key_file).unwrap();
-            let mut f = io::BufReader::new(f);
-            match rustls_pemfile::read_one(&mut f)
-                .transpose()
-                .unwrap()
-                .unwrap()
-            {
+            match rustls_pemfile::read_one(key).transpose().unwrap()? {
                 Item::PKCS8Key(key) => rustls::PrivateKey(key),
                 _ => {
                     return Err(Box::new(PrivateKeyError {
