@@ -4,7 +4,7 @@ use std::{
     error::Error,
     fmt,
     fs::File,
-    io::{self, BufRead},
+    io::{self},
 };
 
 pub use builder::Builder;
@@ -35,19 +35,17 @@ impl Client {
 
 // TODO: define a better error
 #[derive(Debug)]
-struct PrivateKeyError {
-    message: String,
-}
+struct PrivateKeyMissing();
 
-impl fmt::Display for PrivateKeyError {
+impl fmt::Display for PrivateKeyMissing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)
+        write!(f, "no private key found")
     }
 }
 
-impl Error for PrivateKeyError {
+impl Error for PrivateKeyMissing {
     fn description(&self) -> &str {
-        &self.message
+        "no private key found"
     }
 }
 
@@ -93,13 +91,12 @@ impl Certificate {
         };
 
         let key = {
-            match rustls_pemfile::read_one(key).transpose().unwrap()? {
-                Item::PKCS8Key(key) => rustls::PrivateKey(key),
-                _ => {
-                    return Err(Box::new(PrivateKeyError {
-                        message: "no private key found".to_string(),
-                    }))
-                }
+            match rustls_pemfile::read_one(key)? {
+                Some(item) => match item {
+                    Item::PKCS8Key(key) => rustls::PrivateKey(key),
+                    _ => return Err(Box::new(PrivateKeyMissing())),
+                },
+                _ => return Err(Box::new(PrivateKeyMissing())),
             }
         };
 
