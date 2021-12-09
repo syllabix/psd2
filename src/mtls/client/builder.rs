@@ -4,6 +4,7 @@ use rustls::OwnedTrustAnchor;
 use crate::mtls;
 
 pub struct Builder<'a> {
+    //
     cert: Option<mtls::Certificate>,
     base_url: Option<&'a str>,
     headers: hyper::HeaderMap,

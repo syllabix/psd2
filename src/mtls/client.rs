@@ -11,6 +11,7 @@ pub use builder::Builder;
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
 use rustls_pemfile::Item;
+use serde::Deserialize;
 use url::{ParseError, Url};
 
 /// Client is used to make http requests
@@ -21,9 +22,13 @@ pub struct Client {
 }
 
 impl Client {
+    /// Use this function to initialize a builder that can be used
+    /// to properly initialize an mtls Client
     pub fn builder() -> Builder<'static> {
         Builder::new()
     }
+
+    pub fn post(uri: &str) {}
 
     fn urlify(&self, path: &str) -> Result<Url, ParseError> {
         match &self.base_url {
