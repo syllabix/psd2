@@ -1,17 +1,34 @@
-use psd2::mtls;
+use std::{error::Error, time::Duration};
 
-// TODO: build out complete example
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+use psd2::mtls::client;
+use psd2::mtls::client::{Request, Response};
+use psd2::openbanking::AccessToken;
+use psd2::{mtls, openbanking};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let cert = mtls::Certificate::load_from_x509_key_pair(
-        "./examples/certs/example_cert.crt",
-        "./examples/certs/example_key.key",
+        ".certificates/transport.pem",
+        ".certificates/private.key",
     )?;
 
     let client = mtls::Client::builder()
-        .base_url("https://test.ob.com")
-        .default_header("Cache-Control", "no-cache")
+        .base_url("https://sandbox.some-bank.com")
         .certificate(cert)
-        .build();
+        .insecure()
+        .timeout(Duration::from_secs(10))
+        .build()?;
 
+    let payload = openbanking::TokenRequest {
+        grant_type: "client_credentials",
+        scope: "payments",
+        client_id: "<a valid cliend>",
+    };
+
+    let req = client::Request::new(payload);
+
+    let res: Response<AccessToken> = client.post_form("/token", req).await.unwrap();
+
+    println!("{:?}", res);
     Ok(())
 }

@@ -11,5 +11,4 @@
 
 pub use self::client::{Certificate, Client};
 
-mod client;
-mod requester;
+pub mod client;

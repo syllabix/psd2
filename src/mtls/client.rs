@@ -1,21 +1,28 @@
 mod builder;
+pub mod request;
+pub mod response;
 
 use std::{
     error::Error,
     fmt,
     fs::File,
     io::{self},
+    time::Duration,
 };
 
 pub use builder::Builder;
-use hyper::client::HttpConnector;
+use futures_util::StreamExt;
+use hyper::{client::HttpConnector, Body, Method, Request as HTTPRequest};
 use hyper_rustls::HttpsConnector;
+pub use request::Request;
+pub use response::Response;
 use rustls_pemfile::Item;
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Serialize};
 use url::{ParseError, Url};
 
 /// Client is used to make http requests
 pub struct Client {
+    timeout: Option<Duration>,
     base_url: Option<Url>,
     headers: hyper::HeaderMap,
     client: hyper::Client<HttpsConnector<HttpConnector>>,
@@ -28,7 +35,33 @@ impl Client {
         Builder::new()
     }
 
-    pub fn post(uri: &str) {}
+    /// Issue a url encoded form post request to the provided path
+    /// using the provided request
+    pub async fn post_form<'a, T: Serialize, U: DeserializeOwned>(
+        &self,
+        path: &str,
+        request: Request<T>,
+    ) -> Result<Response<U>, Box<dyn Error + 'static>> {
+        let uri = self.urlify(path)?;
+        let payload = serde_urlencoded::to_string(request.data)?;
+        let req = HTTPRequest::builder()
+            .method(Method::POST)
+            .uri(uri.as_str())
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(Body::from(payload))?;
+
+        let mut res = self.client.request(req).await?;
+        let mut body = Vec::new();
+        while let Some(chunk) = res.body_mut().next().await {
+            body.extend_from_slice(&chunk.unwrap());
+        }
+
+        let result: U = serde_json::from_slice(&body)?;
+        return Ok(Response {
+            status_code: res.status().as_u16(),
+            body: result,
+        });
+    }
 
     fn urlify(&self, path: &str) -> Result<Url, ParseError> {
         match &self.base_url {
