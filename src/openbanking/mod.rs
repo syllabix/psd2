@@ -1,4 +1,8 @@
 //! # openbanking
+//!
+//! the open banking module contains various types and utilities for
+//! working directly with psd2 protocol, Open Banking (primarily UK)
+//!
 
 use serde::{Deserialize, Serialize};
 
