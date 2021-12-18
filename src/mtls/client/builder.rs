@@ -5,6 +5,7 @@ use rustls::{client::ServerCertVerifier, OwnedTrustAnchor};
 
 use crate::mtls;
 
+/// A Builder is used to construct a mtls Client
 pub struct Builder<'a> {
     insecure: bool,
     cert: Option<mtls::Certificate>,
@@ -110,7 +111,7 @@ impl<'a> Builder<'a> {
             base_url,
             client,
             timeout: self.timeout,
-            headers: self.headers.to_owned(), // TODO: no cloning!
+            headers: self.headers.to_owned(),
         })
     }
 }

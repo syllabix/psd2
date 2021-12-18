@@ -1,27 +1,35 @@
-mod builder;
-pub mod request;
-pub mod response;
-
+use hyper::{
+    client::HttpConnector,
+    header::{Entry, HeaderValue},
+    Body, Method, Request as HTTPRequest,
+};
+use hyper_rustls::HttpsConnector;
+use rustls_pemfile::Item;
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::value::RawValue;
 use std::{
+    collections::HashMap,
     error::Error,
     fmt,
     fs::File,
     io::{self},
+    str::from_utf8,
     time::Duration,
 };
+use url::{ParseError, Url};
 
+mod builder;
+pub mod request;
+pub mod response;
 pub use builder::Builder;
-use futures_util::StreamExt;
-use hyper::{client::HttpConnector, Body, Method, Request as HTTPRequest};
-use hyper_rustls::HttpsConnector;
 pub use request::Request;
 pub use response::Response;
-use rustls_pemfile::Item;
-use serde::{de::DeserializeOwned, Serialize};
-use url::{ParseError, Url};
+
+use self::request::error;
 
 /// Client is used to make http requests
 pub struct Client {
+    // TODO: implement timeout
     timeout: Option<Duration>,
     base_url: Option<Url>,
     headers: hyper::HeaderMap,
@@ -35,32 +43,76 @@ impl Client {
         Builder::new()
     }
 
-    /// Issue a url encoded form post request to the provided path
-    /// using the provided request
-    pub async fn post_form<'a, T: Serialize, U: DeserializeOwned>(
+    /// Issue a post request to the provided path
+    pub async fn post<T: Serialize, U: DeserializeOwned>(
         &self,
         path: &str,
         request: Request<T>,
     ) -> Result<Response<U>, Box<dyn Error + 'static>> {
-        let uri = self.urlify(path)?;
-        let payload = serde_urlencoded::to_string(request.data)?;
-        let req = HTTPRequest::builder()
-            .method(Method::POST)
-            .uri(uri.as_str())
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .body(Body::from(payload))?;
+        let (data, mut headers) = request.parts();
 
-        let mut res = self.client.request(req).await?;
-        let mut body = Vec::new();
-        while let Some(chunk) = res.body_mut().next().await {
-            body.extend_from_slice(&chunk.unwrap());
+        let payload = serde_json::to_string(&data)?;
+        self.request(Method::POST, path, &mut headers, Body::from(payload))
+            .await
+    }
+
+    /// Issue a url encoded form post request to the provided path
+    /// using the provided request
+    pub async fn post_form<T: Serialize, U: DeserializeOwned>(
+        &self,
+        path: &str,
+        request: Request<T>,
+    ) -> Result<Response<U>, Box<dyn Error + 'static>> {
+        let (data, mut headers) = request.parts();
+
+        headers.insert(
+            "Content-Type",
+            HeaderValue::from_static("application/x-www-form-urlencoded"),
+        );
+
+        let payload = serde_urlencoded::to_string(data)?;
+        self.request(Method::POST, path, &mut headers, Body::from(payload))
+            .await
+    }
+
+    async fn request<T: DeserializeOwned>(
+        &self,
+        method: hyper::Method,
+        path: &str,
+        headers: &mut hyper::HeaderMap,
+        body: Body,
+    ) -> Result<Response<T>, Box<dyn Error + 'static>> {
+        let uri = self.urlify(path)?;
+
+        for (key, value) in &self.headers {
+            if let Entry::Vacant(entry) = headers.entry(key) {
+                entry.insert(value.clone());
+            }
         }
 
-        let result: U = serde_json::from_slice(&body)?;
-        return Ok(Response {
-            status_code: res.status().as_u16(),
-            body: result,
-        });
+        let mut req = HTTPRequest::builder()
+            .method(method)
+            .uri(uri.as_str())
+            .body(body)?;
+        *req.headers_mut() = headers.clone();
+
+        let (parts, body) = self.client.request(req).await?.into_parts();
+        let bytes = hyper::body::to_bytes(body).await?;
+
+        if parts.status.is_success() {
+            let result: T = serde_json::from_slice(&bytes)?;
+            return Ok(Response {
+                status_code: parts.status.as_u16(),
+                data: result,
+            });
+        }
+
+        let json = from_utf8(bytes.as_ref())?;
+
+        Err(Box::new(error::Error {
+            status_code: parts.status.as_u16(),
+            message: String::from(json),
+        }))
     }
 
     fn urlify(&self, path: &str) -> Result<Url, ParseError> {

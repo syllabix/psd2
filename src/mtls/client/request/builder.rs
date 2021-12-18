@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use crate::mtls::client;
 
+#[derive(Debug, Clone)]
 pub struct Builder<T: Serialize> {
     data: Option<T>,
     headers: hyper::HeaderMap,
@@ -36,7 +37,7 @@ impl<T: Serialize> Builder<T> {
     pub fn build(self) -> Result<client::Request<T>, Box<dyn std::error::Error + 'static>> {
         if let Some(data) = self.data {
             Ok(client::Request {
-                data,
+                data: data,
                 headers: self.headers.to_owned(),
             })
         } else {
